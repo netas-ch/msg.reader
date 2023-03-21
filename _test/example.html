@@ -77,8 +77,7 @@
   Sorry, your browser isn't supported
 </div>
 <script src="https://code.jquery.com/jquery-1.12.0.min.js"></script>
-<script src="../DataStream.js"></script>
-<script src="../msg.reader.js"></script>
+
 <script>
   function isSupportedFileAPI() {
     return window.File && window.FileReader && window.FileList && window.Blob;
@@ -128,10 +127,12 @@
 
         // read file...
         var fileReader = new FileReader();
-        fileReader.onload = function (evt) {
+        fileReader.onload = async function (evt) {
+
+            const emlr = await import('../src/MsgReader.js');
 
           var buffer = evt.target.result;
-          var msgReader = new MSGReader(buffer);
+          var msgReader = new emlr.MsgReader(buffer);
           var fileData = msgReader.getFileData();
           if (!fileData.error) {
             $('.msg-example .msg-from').html(formatEmail({name: fileData.senderName, email: fileData.senderEmail}));
