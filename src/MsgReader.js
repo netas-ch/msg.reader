@@ -1,4 +1,5 @@
 /* Copyright 2021 Yury Karpovich
+ * Modified 2023 by Lukas Buchs, netas.ch. Changed to javascript export class.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -12,17 +13,28 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+import {DataStream} from './DataStream.js';
+
 /*
  MSG Reader
  */
-import {DataStream} from './DataStream.js';
-
 export class MsgReader {
     #ds;
     #fileData;
+    #headers;
 
     constructor(arrayBuffer) {
         this.#ds = new DataStream(arrayBuffer, 0, DataStream.LITTLE_ENDIAN);
+
+        if (!MsgReader.#isMSGFile(this.#ds)) {
+            throw new Error('Unsupported file type!');
+        }
+
+        this.#fileData = MsgReader.#parseMsgData(this.#ds);
+
+        if (this.#fileData.fieldsData && this.#fileData.fieldsData.headers) {
+            this.#headers = MsgReader.#splitHeaders(this.#fileData.fieldsData.headers);
+        }
     }
 
     // ----------------------------
@@ -34,15 +46,11 @@ export class MsgReader {
      @return {Object} The fields data for MSG file
      */
     getFileData() {
-        if (!MsgReader.#isMSGFile(this.#ds)) {
-            return {error: 'Unsupported file type!'};
+        if (this.#fileData) {
+            return this.#fileData.fieldsData;
         }
-        if (!this.#fileData) {
-            this.#fileData = MsgReader.#parseMsgData(this.#ds);
-        }
-        return this.#fileData.fieldsData;
+        return null;
     }
-
 
     /**
      Reads an attachment content by key/ID
@@ -56,6 +64,142 @@ export class MsgReader {
         let fieldData = MsgReader.#getFieldValue(this.#ds, this.#fileData, fieldProperty, fieldTypeMapped);
 
         return {fileName: attachData.fileName, content: fieldData};
+    }
+
+    getAttachments() {
+        let attachments=[];
+
+        if (this.#fileData.fieldsData && this.#fileData.fieldsData.attachments && this.#fileData.fieldsData.attachments.length > 0) {
+            for (const atm of this.#fileData.fieldsData.attachments) {
+                let attachment = this.getAttachment(atm);
+
+                    attachments.push({
+                        filename: attachment.fileName,
+                        contentType: atm.mimeType,
+                        content: attachment.content,
+                        filesize: atm.contentLength,
+                        pidContentId: atm.pidContentId
+                    });
+
+            }
+        }
+
+        return attachments;
+    }
+
+    getDate() {
+        let date = this.getHeader('date');
+        if (date) {
+            return new Date(date);
+        }
+        return null;
+    }
+
+    getSubject() {
+        const hSub = this.getHeader('subject', true, true);
+        if (hSub) {
+            return hSub;
+
+        } else if (this.#fileData.fieldsData && this.#fileData.fieldsData.subject) {
+            return this.#fileData.fieldsData.subject;
+        }
+
+    }
+
+    getFrom() {
+        const hSub = this.getHeader('from', true, true);
+        if (hSub) {
+            return hSub;
+
+        } else if (this.#fileData.fieldsData && this.#fileData.fieldsData.senderName && this.#fileData.fieldsData.senderMail) {
+            return this.#fileData.fieldsData.senderName + ' <' + this.#fileData.fieldsData.senderMail + '>';
+
+        } else if (this.#fileData.fieldsData && this.#fileData.fieldsData.senderMail) {
+            return this.#fileData.fieldsData.senderMail;
+
+        } else if (this.#fileData.fieldsData && this.#fileData.fieldsData.senderName) {
+            return this.#fileData.fieldsData.senderName;
+        }
+    }
+
+    getCc() {
+        return this.getHeader('cc', true, true);
+    }
+
+    getTo() {
+        const hSub = this.getHeader('to', true, true);
+        if (hSub) {
+            return hSub;
+
+        } else if (this.#fileData.fieldsData && this.#fileData.fieldsData.recipients && this.#fileData.fieldsData.recipients.length > 0) {
+            let rep = '';
+            for (const rm in this.#fileData.fieldsData.recipients) {
+                if (rm.name && rm.email) {
+                    if (rep) {
+                        rep += '; ';
+                    }
+                    rep += rm.name + ' <' + rm.email + '>';
+
+                } else if (rm.email) {
+                    if (rep) {
+                        rep += '; ';
+                    }
+                    rep += rm.email;
+
+                } else if (rm.name) {
+                    if (rep) {
+                        rep += '; ';
+                    }
+                    rep += rm.name;
+                }
+            }
+            return rep;
+        }
+    }
+
+    getReplyTo() {
+        return this.getHeader('reply-to', true, true);
+    }
+
+    /**
+     * returns a header. If a header occurs more than once, a array is returned.
+     * @param {String} key
+     * @param {Boolean} decode
+     * @param {Boolean} removeLineBreaks
+     * @returns {String|Array|null}
+     */
+    getHeader(key, decode=false, removeLineBreaks=false) {
+        let val = null;
+
+        if (this.#headers[key.toLowerCase()]) {
+            val = this.#headers[key.toLowerCase()];
+        }
+
+        if (val && decode) {
+            if (typeof val === 'string') {
+                val = this.#decodeRfc1342(val);
+            } else {
+                val = val.map(this.#decodeRfc1342);
+            }
+        }
+
+        if (val && removeLineBreaks) {
+            if (typeof val === 'string') {
+                val = val.replace(/\r?\n\s/g, '');
+            } else {
+                val = val.map((v) => { return v.replace(/\r?\n\s/g, ''); });
+            }
+        }
+
+        return val;
+    }
+
+    getMessageText() {
+        return this.#fileData.fieldsData.body;
+    }
+
+    getMessageHtml() {
+        return this.#fileData.fieldsData.bodyHTML;
     }
 
     // ----------------------------
@@ -117,6 +261,7 @@ export class MsgReader {
 
                     // example (use fields as needed)
                     NAME_MAPPING: {
+
                         // email specific
                         '0037': 'subject',
                         '0c1a': 'senderName',
@@ -124,12 +269,14 @@ export class MsgReader {
                         '1000': 'body',
                         '1013': 'bodyHTML',
                         '007d': 'headers',
+
                         // attachment specific
                         '3703': 'extension',
                         '3704': 'fileNameShort',
                         '3707': 'fileName',
                         '3712': 'pidContentId',
                         '370e': 'mimeType',
+
                         // recipient specific
                         '3001': 'name',
                         '39fe': 'email'
@@ -205,8 +352,111 @@ export class MsgReader {
 
 
     // ----------------------------
+    // PRIVATE FUNCTIONS
+    // ----------------------------
+
+    #decodeRfc1342(string) {
+        // =?utf-8?Q?Kostensch=C3=A4tzung=5F451.pdf?=
+        const decoder = new TextDecoder();
+        string = string.replace(/=\?([0-9a-z\-_:]+)\?(B|Q)\?(.*?)\?=/ig, (m, charset, encoding, encodedText) => {
+            let buf = null;
+            switch (encoding.toUpperCase()) {
+                case 'B': buf = this.#decodeBase64(encodedText, charset); break;
+                case 'Q': buf = this.#decodeQuotedPrintable(encodedText, charset, true); break;
+                default: throw new Error('invalid string encoding "' + encoding + '"');
+            }
+            return decoder.decode(new Uint8Array(buf));
+        });
+
+        return string;
+    }
+
+    /**
+     * @param {Uint8Array|String} raw
+     * @param {String|null} charset
+     * @returns {ArrayBuffer}
+     */
+    #decodeBase64(raw, charset=null) {
+        if (raw instanceof Uint8Array) {
+            const decoder = new TextDecoder();
+            raw = decoder.decode(raw);
+        }
+        const binary_string = window.atob(raw);
+        const len = binary_string.length;
+        const bytes = new Uint8Array(len);
+        for (let i = 0; i < len; i++) {
+            bytes[i] = binary_string.charCodeAt(i);
+        }
+        if (!charset) {
+            return bytes.buffer;
+
+        } else {
+            // convert to utf-8
+            const dec = new TextDecoder(charset), enc = new TextEncoder();
+            const arr = enc.encode(dec.decode(bytes));
+            return arr.buffer;
+        }
+    }
+
+    /**
+     * @param {Uint8Array|String} raw
+     * @param {String} charset
+     * @param {Bool} replaceUnderline
+     * @returns {ArrayBuffer}
+     */
+    #decodeQuotedPrintable(raw, charset, replaceUnderline=false) {
+        if (raw instanceof Uint8Array) {
+            const decoder = new TextDecoder();
+            raw = decoder.decode(raw);
+        }
+
+        // in RFC 1342 underline is used for space
+        if (replaceUnderline) {
+            raw = raw.replace(/_/g, ' ');
+        }
+
+        const dc = new TextDecoder(charset ? charset : 'utf-8');
+        const str = raw.replace(/[\t\x20]$/gm, "").replace(/=(?:\r\n?|\n)/g, "").replace(/((?:=[a-fA-F0-9]{2})+)/g, (m) => {
+            const cd = m.substring(1).split('='), uArr=new Uint8Array(cd.length);
+            for (let i = 0; i < cd.length; i++) {
+                uArr[i] = parseInt(cd[i], 16);
+            }
+            return dc.decode(uArr);
+        });
+
+        const encoder = new TextEncoder();
+        const arr = encoder.encode(str);
+        return arr.buffer;
+    }
+
+
+    // ----------------------------
     // PRIVATE STATIC FUNCTIONS
     // ----------------------------
+
+
+    static #splitHeaders(headerRaw) {
+        const headers = headerRaw.split(/\n(?=[^\s])/g), responseHeaders = {};
+
+        for (let header of headers) {
+            const sepPos = header.indexOf(':');
+            if (sepPos !== -1) {
+                const key = header.substring(0, sepPos).toLowerCase().trim(), value=header.substring(sepPos+1).trim();
+
+                if (responseHeaders[key] && typeof responseHeaders[key] === 'string') {
+                    responseHeaders[key] = [responseHeaders[key]];
+                }
+                if (responseHeaders[key]) {
+                    responseHeaders[key].push(value);
+
+                } else {
+                    responseHeaders[key] = value;
+                }
+            }
+        }
+
+        return responseHeaders;
+    }
 
     // unit utils
     static #arraysEqual(a, b) {

@@ -1,10 +1,23 @@
+/*
+ * Copyright 2016  Ilmari Heikkinen
+ * Modified 2023 by Lukas Buchs, netas.ch. Changed to javascript export class.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 /**
  DataStream reads scalars, arrays and structs of data from an ArrayBuffer.
  It's like a file-like DataView on steroids.
-
- @param {ArrayBuffer} arrayBuffer ArrayBuffer to read from.
- @param {?Number} byteOffset Offset from arrayBuffer beginning for the DataStream.
- @param {?Boolean} endianness DataStream.BIG_ENDIAN or DataStream.LITTLE_ENDIAN (the default).
  */
 export class DataStream {
     #buffer;
@@ -59,6 +72,12 @@ export class DataStream {
     // CONSTRUCTOR
     // ----------------------------
 
+    /**
+     * @param {ArrayBuffer} arrayBuffer ArrayBuffer to read from.
+     * @param {?Number} byteOffset Offset from arrayBuffer beginning for the DataStream.
+     * @param {?Boolean} endianness DataStream.BIG_ENDIAN or DataStream.LITTLE_ENDIAN (the default).
+     * @returns {undefined}
+     */
     constructor(arrayBuffer, byteOffset, endianness) {
         this.#byteOffset = byteOffset || 0;
 
