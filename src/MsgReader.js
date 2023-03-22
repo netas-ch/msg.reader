@@ -120,6 +120,8 @@ export class MsgReader {
         } else if (this.#fileData.fieldsData && this.#fileData.fieldsData.senderName) {
             return this.#fileData.fieldsData.senderName;
         }
+
+        return '';
     }
 
     getCc() {
@@ -133,7 +135,7 @@ export class MsgReader {
 
         } else if (this.#fileData.fieldsData && this.#fileData.fieldsData.recipients && this.#fileData.fieldsData.recipients.length > 0) {
             let rep = '';
-            for (const rm in this.#fileData.fieldsData.recipients) {
+            for (const rm of this.#fileData.fieldsData.recipients) {
                 if (rm.name && rm.email) {
                     if (rep) {
                         rep += '; ';
@@ -171,7 +173,7 @@ export class MsgReader {
     getHeader(key, decode=false, removeLineBreaks=false) {
         let val = null;
 
-        if (this.#headers[key.toLowerCase()]) {
+        if (this.#headers && this.#headers[key.toLowerCase()]) {
             val = this.#headers[key.toLowerCase()];
         }
 
