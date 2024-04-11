@@ -122,7 +122,14 @@ export class MsgReader {
         } else if (this.#fileData.fieldsData && this.#fileData.fieldsData.Subject) {
             return this.#fileData.fieldsData.Subject;
         }
+    }
 
+    getType() {
+        if (this.getHeader('received')) {
+            return 'received';
+        } else {
+            return 'sent';
+        }
     }
 
     getFrom() {
@@ -149,8 +156,24 @@ export class MsgReader {
         return '';
     }
 
+    getBcc() {
+        const hSub = this.getHeader('bcc', true, true);
+        if (hSub) {
+            return hSub;
+
+        } else {
+            return this.#getReceipients().bcc;
+        }
+    }
+
     getCc() {
-        return this.getHeader('cc', true, true);
+        const hSub = this.getHeader('cc', true, true);
+        if (hSub) {
+            return hSub;
+
+        } else {
+            return this.#getReceipients().cc;
+        }
     }
 
     getTo() {
@@ -158,29 +181,8 @@ export class MsgReader {
         if (hSub) {
             return hSub;
 
-        } else if (this.#fileData.fieldsData && this.#fileData.fieldsData.recipients && this.#fileData.fieldsData.recipients.length > 0) {
-            let rep = '';
-            for (const rm of this.#fileData.fieldsData.recipients) {
-                if (rm.DisplayName && rm.SmtpAddress) {
-                    if (rep) {
-                        rep += '; ';
-                    }
-                    rep += rm.DisplayName + ' <' + rm.SmtpAddress + '>';
-
-                } else if (rm.SmtpAddress) {
-                    if (rep) {
-                        rep += '; ';
-                    }
-                    rep += rm.SmtpAddress;
-
-                } else if (rm.DisplayName) {
-                    if (rep) {
-                        rep += '; ';
-                    }
-                    rep += rm.DisplayName;
-                }
-            }
-            return rep;
+        } else {
+            return this.#getReceipients().to;
         }
     }
 
@@ -232,6 +234,43 @@ export class MsgReader {
     // ----------------------------
     // PRIVATE STATIC CONSTANTS
     // ----------------------------
+
+    #getReceipients() {
+        const response = {to: [], cc: [], bcc: []};
+        const displayTo = this.#fileData.fieldsData.DisplayTo ? this.#fileData.fieldsData.DisplayTo.trim() : '';
+        const displayCc = this.#fileData.fieldsData.DisplayCc ? this.#fileData.fieldsData.DisplayCc.trim() : '';
+        const displayBcc = this.#fileData.fieldsData.DisplayBcc ? this.#fileData.fieldsData.DisplayBcc.trim() : '';
+
+        if (this.#fileData.fieldsData.recipients) {
+            this.#fileData.fieldsData.recipients.forEach((recipient) => {
+                const mail = (recipient.EmailAddress ?? recipient.SmtpAddress ?? recipient.DisplayName ?? '').trim();
+                const disp = (recipient.DisplayName ?? '').trim();
+                let type = 'to';
+
+                if (disp && displayTo.indexOf(disp) !== -1) {
+                    type = 'to';
+                } else if (disp && displayCc.indexOf(disp) !== -1) {
+                    type = 'cc';
+                } else if (disp && displayBcc.indexOf(disp) !== -1) {
+                    type = 'bcc';
+                }
+
+                if (mail && disp) {
+                    response[type].push(disp + ' <' + mail + '>');
+                } else if (mail) {
+                    response[type].push(mail);
+                } else if (disp) {
+                    response[type].push(disp);
+                }
+            });
+        }
+
+        return {
+            to: response.to.join('; '),
+            cc: response.cc.join('; '),
+            bcc: response.bcc.join('; ')
+        };
+    }
 
     // constants
     static get CONST() {
@@ -3782,10 +3821,11 @@ export class MsgReader {
         let fieldClass = value.substring(0, 4);
         let fieldType = value.substring(4, 8);
         let fieldName = MsgReader.#getMapiFieldName(fieldClass) ?? 'unknown_'+fieldClass;
-        let suffix='';
+        let suffix='', offset=1;
 
         while (fields[fieldName + suffix]) {
-            suffix = suffix ? parseInt(suffix)+1 : '1';
+            offset++;
+            suffix = '-' + offset;
         }
 
         fieldName = fieldName + suffix;

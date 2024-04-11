@@ -49,12 +49,17 @@ Copyright © 2023 Netas Ltd., Switzerland.
                         el.removeChild(el.firstChild);
                     }
 
+                    let rawData = test.getFileData();
+                    console.log(rawData);
+
                     addNote('getDate', test.getDate());
                     addNote('getSubject', test.getSubject());
                     addNote('getFrom', test.getFrom());
-                    addNote('getCc', test.getCc());
                     addNote('getTo', test.getTo());
+                    addNote('getCc', test.getCc());
+                    addNote('getBcc', test.getBcc());
                     addNote('getReplyTo', test.getReplyTo());
+                    addNote('getType', test.getType());
 
                     let files = test.getAttachments();
 
