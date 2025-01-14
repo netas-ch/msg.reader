@@ -162,7 +162,7 @@ export class MsgReader {
             return hSub;
 
         } else {
-            return this.#getReceipients().bcc;
+            return this.#getRecipients().bcc;
         }
     }
 
@@ -172,7 +172,7 @@ export class MsgReader {
             return hSub;
 
         } else {
-            return this.#getReceipients().cc;
+            return this.#getRecipients().cc;
         }
     }
 
@@ -182,7 +182,7 @@ export class MsgReader {
             return hSub;
 
         } else {
-            return this.#getReceipients().to;
+            return this.#getRecipients().to;
         }
     }
 
@@ -235,7 +235,7 @@ export class MsgReader {
     // PRIVATE STATIC CONSTANTS
     // ----------------------------
 
-    #getReceipients() {
+    #getRecipients() {
         const response = {to: [], cc: [], bcc: []};
         const displayTo = this.#fileData.fieldsData.DisplayTo ? this.#fileData.fieldsData.DisplayTo.trim() : '';
         const displayCc = this.#fileData.fieldsData.DisplayCc ? this.#fileData.fieldsData.DisplayCc.trim() : '';
@@ -243,7 +243,7 @@ export class MsgReader {
 
         if (this.#fileData.fieldsData.recipients) {
             this.#fileData.fieldsData.recipients.forEach((recipient) => {
-                const mail = (recipient.EmailAddress ?? recipient.SmtpAddress ?? recipient.DisplayName ?? '').trim();
+                const mail = (MsgReader.#getEmailIfValid(recipient.EmailAddress) ?? MsgReader.#getEmailIfValid(recipient.SmtpAddress) ?? recipient.DisplayName ?? '').trim();
                 const disp = (recipient.DisplayName ?? '').trim();
                 let type = 'to';
 
@@ -3432,6 +3432,16 @@ export class MsgReader {
         }
 
         return responseHeaders;
+    }
+
+    static #getEmailIfValid(str) {
+        const validRegex = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9-]+(?:\.[a-zA-Z0-9-]+)*$/;
+
+        if(str.match(validRegex)) {
+            return str;
+        } else {
+            return null;
+        }
     }
 
     // unit utils
