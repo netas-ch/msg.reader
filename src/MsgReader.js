@@ -149,6 +149,9 @@ export class MsgReader {
         } else if (this.#fileData.fieldsData && this.#fileData.fieldsData.LastModifierSMTPAddress) {
             return this.#fileData.fieldsData.LastModifierSMTPAddress;
 
+        } else if (this.#fileData.fieldsData && this.#fileData.fieldsData.SenderName && this.#fileData.fieldsData.LastModifierName && !this.#fileData.fieldsData.LastModifierName.includes('<')) {
+            return this.#fileData.fieldsData.SenderName + ' <' + this.#fileData.fieldsData.LastModifierName + '>';
+
         } else if (this.#fileData.fieldsData && this.#fileData.fieldsData.SenderName) {
             return this.#fileData.fieldsData.SenderName;
         }
