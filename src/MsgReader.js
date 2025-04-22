@@ -227,7 +227,16 @@ export class MsgReader {
     }
 
     getMessageText() {
-        return this.#fileData.fieldsData.Body;
+        let val = this.#fileData.fieldsData.Body;
+
+        // replace nbsp with space
+        let re = new RegExp(String.fromCharCode(160), "g");
+        val = val.replace(re, " ");
+
+        // replace multiple newlines
+        val = val.replace(/\r?\n\s*\r?\n\s*\r?\n/g, "\n\n");
+
+        return val;
     }
 
     getMessageHtml() {
